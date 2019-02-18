@@ -1,3 +1,4 @@
+
 /*----------------------------------------------------------------------------*/
 /* Copyright (c) 2018 FIRST. All Rights Reserved.                             */
 /* Open Source Software - may be modified and shared by FRC teams. The code   */
@@ -18,22 +19,20 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import edu.wpi.cscore.CvSink;
+import edu.wpi.cscore.CvSource;
 import edu.wpi.cscore.MjpegServer;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.cscore.VideoSource;
 import edu.wpi.first.cameraserver.CameraServer;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.vision.VisionPipeline;
 import edu.wpi.first.vision.VisionThread;
 
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfPoint;
-import org.opencv.core.Rect;
+import org.opencv.core.Point;
+import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
-
-//import GripPipeline.Line;
 
 /*
    JSON format:
@@ -72,8 +71,7 @@ import org.opencv.imgproc.Imgproc;
 
 public final class Main {
   private static String configFile = "/boot/frc.json";
-  
-  
+
   @SuppressWarnings("MemberName")
   public static class CameraConfig {
     public String name;
@@ -209,97 +207,27 @@ public final class Main {
    * Example pipeline.
    */
   public static class MyPipeline implements VisionPipeline {
-   // public int val;
-    TargetTracker1 cameraFeed = new TargetTracker1();
-    GripPipeline gripPipeline = new GripPipeline();
-    
-    // NetworkTableEntry areaData;
-    // NetworkTableEntry centerX;
-    // NetworkTableEntry centerY;
-    // NetworkTableEntry height;
-    // NetworkTableEntry solidity;
-    // NetworkTableEntry width;
+    public int val;
+    public static final int CAMERA_WIDTH = 320; // 640;
+    public static final int CAMERA_HEIGHT = 240; // 480;
+    GripPipeline pipeline = new GripPipeline();
+    Mat output = new Mat();
+    CvSink cvSink = CameraServer.getInstance().getVideo();
+	  CvSource cvSource = CameraServer.getInstance().putVideo("contours", CAMERA_WIDTH, CAMERA_HEIGHT);
 
-    // NetworkTableEntry x1Data;
-    // NetworkTableEntry x2;
-    // NetworkTableEntry y1;
-    // NetworkTableEntry y2;
-
-
-    // private Mat matOriginal;
-	  // private double lengthBetweenContours;
-	  // private double distanceFromTarget;
-	  private double[] centerX;
-	  //private double boundingBox;
-
-    public double returnCenterX() {
-      // This is the center value returned by GRIP thank WPI
-      if (!gripPipeline.filterContoursOutput().isEmpty()) {
-        if(gripPipeline.filterContoursOutput().size() >= 2) {
-          
-        }
-        Rect r = Imgproc.boundingRect(gripPipeline.filterContoursOutput().get(1));
-        //Rect r1 = Imgproc.boundingRect(pipeline.filterContoursOutput.get(0));
-        centerX = new double [] { r.x + (r.width / 2)};
-        // this again checks for the 2 shapes on the target
-        // if (centerX.length == 2) { 
-        // 	// subtracts one another to get length in pixels
-        // 	lengthBetweenContours = Math.abs(centerX[0] - centerX[1]);
-        //}
-      }
-      return centerX[0];
-    }
-
-   
-
-    public MyPipeline() {
-      // NetworkTable lineTable = NetworkTableInstance.getDefault().getTable("lines");
-      // NetworkTable contourTable = NetworkTableInstance.getDefault().getTable("contours");
-      //NetworkTable centerXTable = NetworkTableInstance.getDefault().getTable("contours");
-      // // area = contourTable.getEntry("area");
-      // centerX = centerXTable.getEntry("centerX");
-      // // centerY = contourTable.getEntry("centerY");
-      // // height = contourTable.getEntry("height");
-      // // solidity = contourTable.getEntry("solidity");
-      // // width = contourTable.getEntry("width");
-      // areaData = contourTable.getEntry("areaData");
-      // x1Data = lineTable.getEntry("x1Data");
-    
-    }
     @Override
     public void process(Mat mat) {
-      //val += 1;
-      
-      gripPipeline.process(mat);
-      //cameraFeed.processImage();
-     
-      //System.out.println(returnCenterX());
-      //List<GripPipeline.Line> lines = gripPipeline.findLinesOutput();
-    //   List<MatOfPoints> contours = gripPipeline.findContoursOutput();
-      
-    //  // Double[] x1Data = new Double[lines.size()];
-    //  // Double[] x2Data = new Double[lines.size()];
-    //  // Double[] y1Data = new Double[lines.size()];
-    //  // Double[] y2Data = new Double[lines.size()];
 
-    //  Double[] areaData = new Double[contours.size()];
-      
-    //   for(int i = 0;i < contours.size(); i++){
-    //     //var line = lines.get(i);
-    //     MatOfPoint contour = contours.get(i);
-        
-    //     //x1Data[i] = line.x1;
-    //     //x2Data[i] = line.x2;
-    //     //y1Data[i] = line.y1;
-    //     //y2Data[i] = line.y2;
-    //   }
-      
-      // x1.setNumberArray(x1Data);
-      // x2.setNumberArray(x1Data);
-      // y1.setNumberArray(x1Data);
-      // y2.setNumberArray(x1Data);   
+      pipeline.process(mat);
+      cvSink.grabFrame(mat);
+		  mat.copyTo(output);
+		  pipeline.filterContoursOutput().forEach(contour -> {
+			  var box = Imgproc.boundingRect(contour);
+			  Imgproc.rectangle(output, new Point(box.x, box.y), new Point(box.x + box.width, box.y + box.height), new Scalar(200, 0, 0));
+			  System.out.println("rectangle drawn");
+		  });
+		cvSource.putFrame(output);
     }
-
   }
 
   /**

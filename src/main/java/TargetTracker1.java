@@ -53,8 +53,7 @@ public final class TargetTracker1 extends Subsystem {
 		camera.setResolution(CAMERA_WIDTH, CAMERA_HEIGHT);
 		camera.setFPS(15);
 
-		SmartDashboard.putNumber("brightness", camera.getBrightness());
-		SmartDashboard.putNumber("exposure", 20);
+		 
 	}
 
 	public void processImage() {
