@@ -12,6 +12,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.swing.Box;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -25,12 +27,20 @@ import edu.wpi.cscore.MjpegServer;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.cscore.VideoSource;
 import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.vision.VisionPipeline;
 import edu.wpi.first.vision.VisionThread;
+import edu.wpi.first.wpilibj.Sendable;
+import edu.wpi.first.wpilibj.command.Command;
+import edu.wpi.first.wpilibj.command.Subsystem;
+import edu.wpi.first.wpilibj.livewindow.LiveWindow;
+import edu.wpi.first.wpilibj.smartdashboard.SendableBuilder;
 
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 
@@ -206,28 +216,163 @@ public final class Main {
   /**
    * Example pipeline.
    */
-  public static class MyPipeline implements VisionPipeline {
+  public static class MyPipeline implements VisionPipeline, Sendable {
     public int val;
     public static final int CAMERA_WIDTH = 320; // 640;
     public static final int CAMERA_HEIGHT = 240; // 480;
+    public static final double OFFSET_TO_FRONT = 0;
+	  public static final double DISTANCE_CONSTANT = 5760; // 5738;
+	  public static final double WIDTH_BETWEEN_TARGET = 13.3133853031; // inches
+
     GripPipeline pipeline = new GripPipeline();
     Mat output = new Mat();
     CvSink cvSink = CameraServer.getInstance().getVideo();
-	  CvSource cvSource = CameraServer.getInstance().putVideo("contours", CAMERA_WIDTH, CAMERA_HEIGHT);
+    CvSource cvSource = CameraServer.getInstance().putVideo("contours", CAMERA_WIDTH, CAMERA_HEIGHT);
+    
+    NetworkTableEntry heights;
+    NetworkTableEntry widths;
+    NetworkTableEntry positionX;
+    NetworkTableEntry positionY;
 
-    @Override
+    NetworkTableEntry sendCenterX;
+    NetworkTableEntry sendDistanceFromTarget;
+    NetworkTableEntry sendGetAngle;
+
+    private double lengthBetweenContours;
+  	private double distanceFromTarget;
+	  private double[] centerX;
+  
+    public MyPipeline() {
+      LiveWindow.add(this);
+      LiveWindow.setEnabled(true);
+
+       NetworkTable targetsTable = NetworkTableInstance.getDefault().getTable("Target Locations");
+       heights = targetsTable.getEntry("heights");
+       widths = targetsTable.getEntry("widths");
+       positionX = targetsTable.getEntry("boxPositionX");
+       positionY = targetsTable.getEntry("boxPositionY");
+
+       NetworkTable dataToSendTable = NetworkTableInstance.getDefault().getTable("dataToSend");
+       sendCenterX = dataToSendTable.getEntry("centerX");
+       sendDistanceFromTarget = dataToSendTable.getEntry("distanceFromTarget");
+       sendGetAngle = dataToSendTable.getEntry("getAngle");
+    }
+   
     public void process(Mat mat) {
-
+ 
       pipeline.process(mat);
       cvSink.grabFrame(mat);
-		  mat.copyTo(output);
-		  pipeline.filterContoursOutput().forEach(contour -> {
-			  var box = Imgproc.boundingRect(contour);
-			  Imgproc.rectangle(output, new Point(box.x, box.y), new Point(box.x + box.width, box.y + box.height), new Scalar(200, 0, 0));
-			  System.out.println("rectangle drawn");
-		  });
-		cvSource.putFrame(output);
+      mat.copyTo(output);
+      
+      Integer[] boxWidths = new Integer[pipeline.filterContoursOutput().size()];
+      Integer[] boxHeights = new Integer[pipeline.filterContoursOutput().size()];
+      Integer[] boxPositionX = new Integer[pipeline.filterContoursOutput().size()];
+      Integer[] boxPositionY = new Integer[pipeline.filterContoursOutput().size()];
+      
+      for(int i = 0; i < pipeline.filterContoursOutput().size(); i++ ) {
+        var contour = pipeline.filterContoursOutput().get(i);
+        var box = Imgproc.boundingRect(contour);
+			  Imgproc.rectangle(output, new Point(box.x, box.y), new Point(box.x + box.width, box.y + box.height), new Scalar(100, 255, 227));
+        //System.out.println("rectangle drawn");
+        //System.out.println(box.width);
+        
+          pipeline.filterContoursOutput().get(i);
+          
+          boxWidths[i] = box.width;
+          boxHeights[i] = box.height;
+          boxPositionX[i] = box.x;
+          boxPositionY[i] = box.y;
+      }
+
+      widths.setNumberArray(boxWidths);
+      heights.setNumberArray(boxHeights);
+      positionX.setNumberArray(boxPositionX);
+      positionY.setNumberArray(boxPositionY);
+      
+      sendCenterX.setNumber(returnCenterX());
+      sendDistanceFromTarget.setNumber(distanceFromTarget());
+      sendGetAngle.setNumber(getAngle());
+
+      cvSource.putFrame(output);
     }
+    
+    public double returnCenterX() {
+      // This is the center value returned by GRIP thank WPI
+      if (!pipeline.filterContoursOutput().isEmpty() && pipeline.filterContoursOutput().size() >= 2) {
+        Rect r = Imgproc.boundingRect(pipeline.filterContoursOutput().get(1));
+        Rect r1 = Imgproc.boundingRect(pipeline.filterContoursOutput().get(0));
+        centerX = new double[] { r1.x + (r1.width / 2), r.x + (r.width / 2) };
+        // this again checks for the 2 shapes on the target
+        if (centerX.length == 2) {
+          // subtracts one another to get length in pixels
+          lengthBetweenContours = Math.abs(centerX[0] - centerX[1]);
+        }
+      }
+      return lengthBetweenContours;
+    }
+
+    public double distanceFromTarget() {
+      // distance constant divided by length between centers of contours
+      distanceFromTarget = DISTANCE_CONSTANT / lengthBetweenContours;
+      return distanceFromTarget - OFFSET_TO_FRONT;
+    }
+
+    public double getAngle() {
+      // 8.5in is for the distance from center to center from goal, then
+      // divide by lengthBetweenCenters in pixels to get proportion
+      double constant = WIDTH_BETWEEN_TARGET / lengthBetweenContours;
+      double angleToGoal = 0;
+      // Looking for the 2 blocks to actually start trig
+      if (!pipeline.filterContoursOutput().isEmpty() && pipeline.filterContoursOutput().size() >= 2) {
+  
+        if (centerX.length == 2) {
+          // this calculates the distance from the center of goal to
+          // center of webcam
+          double distanceFromCenterPixels = ((centerX[0] + centerX[1]) / 2) - (CAMERA_WIDTH / 2);
+          // Converts pixels to inches using the constant from above.
+          double distanceFromCenterInch = distanceFromCenterPixels * constant;
+          // math brought to you buy Chris and Jones
+          angleToGoal = Math.atan(distanceFromCenterInch / distanceFromTarget());
+          angleToGoal = Math.toDegrees(angleToGoal);
+          // prints angle
+          // System.out.println("Angle: " + angleToGoal);
+        }
+      }
+      //SmartDashboard.putNumber("angleToGoal", angleToGoal);
+      return angleToGoal;
+    }
+  
+    @Override
+    public String getName() {
+      return "cameraServer";
+    }
+
+    @Override
+    public String getSubsystem() {
+      return "cameraServerSubsystem";
+    }
+
+    @Override
+    public void setName(String name) {
+
+    }
+    @Override
+    public void setSubsystem(String subsystem) {
+
+    }
+
+    @Override
+    public void initSendable(SendableBuilder builder) {
+      builder.setSmartDashboardType(getName());
+      
+      builder.addDoubleProperty("upperHue", () -> pipeline.upperHue, value -> {pipeline.upperHue = value; System.out.println("upperHue");});
+      builder.addDoubleProperty("lowerHue", () -> pipeline.lowerHue, value -> {pipeline.lowerHue = value;});
+      builder.addDoubleProperty("upperSaturation", () -> pipeline.upperSaturation, value -> {pipeline.upperSaturation = value;});
+      builder.addDoubleProperty("lowerSaturation", () -> pipeline.lowerSaturation, value -> {pipeline.lowerSaturation = value;});
+      builder.addDoubleProperty("upperValue", () -> pipeline.upperValue, value -> {pipeline.upperValue = value;});
+      builder.addDoubleProperty("lowerValue", () -> pipeline.lowerValue, value -> {pipeline.lowerValue = value;});		
+      
+    }  
   }
 
   /**

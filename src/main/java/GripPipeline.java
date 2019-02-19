@@ -34,11 +34,11 @@ public class GripPipeline implements VisionPipeline {
 	private ArrayList<MatOfPoint> findContoursOutput = new ArrayList<MatOfPoint>();
 	private ArrayList<MatOfPoint> filterContoursOutput = new ArrayList<MatOfPoint>();
 
-	public double lowerHue = 30.082225735207203;
-	public double upperHue = 118.56654704227383;
-	public double lowerSaturation = 0.0;
-	public double upperSaturation = 111.38223775343756;
-	public double lowerValue = 229.34331145532886; 
+	public double lowerHue = 0;
+	public double upperHue = 180;
+	public double lowerSaturation = 185;
+	public double upperSaturation = 255;
+	public double lowerValue = 169; 
 	public double upperValue = 255.0;
 
 	static {
@@ -59,7 +59,7 @@ public class GripPipeline implements VisionPipeline {
 		Mat cvErodeSrc = blurOutput;
 		Mat cvErodeKernel = new Mat();
 		Point cvErodeAnchor = new Point(-1, -1);
-		double cvErodeIterations = 10.0;
+		double cvErodeIterations = 1;
 		int cvErodeBordertype = Core.BORDER_CONSTANT;
 		Scalar cvErodeBordervalue = new Scalar(-1);
 		cvErode(cvErodeSrc, cvErodeKernel, cvErodeAnchor, cvErodeIterations, cvErodeBordertype, cvErodeBordervalue, cvErodeOutput);
