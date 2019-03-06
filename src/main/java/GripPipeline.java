@@ -41,6 +41,19 @@ public class GripPipeline implements VisionPipeline {
 	public double lowerValue = 169; 
 	public double upperValue = 255.0;
 
+	public double filterContoursMinAreaValue = 0;
+	public double filterContoursMinPerimeterValue = 0;
+	public double filterContoursMinWidthValue = 2;
+	public double filterContoursMaxWidthValue = 100;
+	public double filterContoursMinHeightValue = 5;
+	public double filterContoursMaxHeightValue = 100;
+	public double lowerfilterContoursSolidityValue = 40;
+	public double upperfilterContoursSolidityValue = 100;
+	public double filterContoursMaxVerticesValue = 1000;
+	public double filterContoursMinVerticesValue = 0;
+	public double filterContoursMinRatioValue= 0;
+	public double filterContoursMaxRatioValue = 10000;
+
 	static {
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
 	}
@@ -52,7 +65,7 @@ public class GripPipeline implements VisionPipeline {
 		// Step Blur0:
 		Mat blurInput = source0;
 		BlurType blurType = BlurType.get("Box Blur");
-		double blurRadius = 1.8018018018018018;
+		double blurRadius = 0.1;
 		blur(blurInput, blurType, blurRadius, blurOutput);
 
 		// Step CV_erode0:
@@ -83,17 +96,17 @@ public class GripPipeline implements VisionPipeline {
 
 		// Step Filter_Contours0:
 		ArrayList<MatOfPoint> filterContoursContours = findContoursOutput;
-		double filterContoursMinArea = 0;
-		double filterContoursMinPerimeter = 0;
-		double filterContoursMinWidth = 0;
-		double filterContoursMaxWidth = 50000.0;
-		double filterContoursMinHeight = 0;
-		double filterContoursMaxHeight = 5000.0;
-		double[] filterContoursSolidity = {0, 100};
-		double filterContoursMaxVertices = 1000000;
-		double filterContoursMinVertices = 0;
-		double filterContoursMinRatio = 0;
-		double filterContoursMaxRatio = 10000;
+		double filterContoursMinArea = filterContoursMinAreaValue;
+		double filterContoursMinPerimeter = filterContoursMinPerimeterValue;
+		double filterContoursMinWidth = filterContoursMinWidthValue;
+		double filterContoursMaxWidth = filterContoursMaxWidthValue;
+		double filterContoursMinHeight = filterContoursMinHeightValue;
+		double filterContoursMaxHeight = filterContoursMaxHeightValue;
+		double[] filterContoursSolidity = {lowerfilterContoursSolidityValue, upperfilterContoursSolidityValue};
+		double filterContoursMaxVertices = filterContoursMaxVerticesValue;
+		double filterContoursMinVertices = filterContoursMinVerticesValue;
+		double filterContoursMinRatio = filterContoursMinRatioValue;
+		double filterContoursMaxRatio = filterContoursMaxRatioValue;
 		filterContours(filterContoursContours, filterContoursMinArea, filterContoursMinPerimeter, filterContoursMinWidth, filterContoursMaxWidth, filterContoursMinHeight, filterContoursMaxHeight, filterContoursSolidity, filterContoursMaxVertices, filterContoursMinVertices, filterContoursMinRatio, filterContoursMaxRatio, filterContoursOutput);
 
 	}

@@ -218,11 +218,11 @@ public final class Main {
    */
   public static class MyPipeline implements VisionPipeline, Sendable {
     public int val;
-    public static final int CAMERA_WIDTH = 320; // 640;
-    public static final int CAMERA_HEIGHT = 240; // 480;
+    public static final int CAMERA_WIDTH = 160; //320 // 640;
+    public static final int CAMERA_HEIGHT = 120; //240// 480;
     public static final double OFFSET_TO_FRONT = 0;
-	  public static final double DISTANCE_CONSTANT = 5760; // 5738;
 	  public static final double WIDTH_BETWEEN_TARGET = 13.3133853031; // inches
+    public static final double DISTANCE_CONSTANT = WIDTH_BETWEEN_TARGET * CAMERA_WIDTH / 0.2361111111 / 2; //5760  // 5738;
 
     GripPipeline pipeline = new GripPipeline();
     Mat output = new Mat();
@@ -318,7 +318,7 @@ public final class Main {
     }
 
     public double getAngle() {
-      // 8.5in is for the distance from center to center from goal, then
+      // 13.3133853031in is for the distance from center to center from goal, then
       // divide by lengthBetweenCenters in pixels to get proportion
       double constant = WIDTH_BETWEEN_TARGET / lengthBetweenContours;
       double angleToGoal = 0;
@@ -365,16 +365,34 @@ public final class Main {
     public void initSendable(SendableBuilder builder) {
       builder.setSmartDashboardType(getName());
       
-      builder.addDoubleProperty("upperHue", () -> pipeline.upperHue, value -> {pipeline.upperHue = value; System.out.println("upperHue");});
+      builder.addDoubleProperty("upperHue", () -> pipeline.upperHue, value -> {pipeline.upperHue = value;});
       builder.addDoubleProperty("lowerHue", () -> pipeline.lowerHue, value -> {pipeline.lowerHue = value;});
       builder.addDoubleProperty("upperSaturation", () -> pipeline.upperSaturation, value -> {pipeline.upperSaturation = value;});
       builder.addDoubleProperty("lowerSaturation", () -> pipeline.lowerSaturation, value -> {pipeline.lowerSaturation = value;});
       builder.addDoubleProperty("upperValue", () -> pipeline.upperValue, value -> {pipeline.upperValue = value;});
       builder.addDoubleProperty("lowerValue", () -> pipeline.lowerValue, value -> {pipeline.lowerValue = value;});		
       
+      builder.addDoubleProperty("minArea", () -> pipeline.filterContoursMinAreaValue, value -> {pipeline.filterContoursMinAreaValue = value;});
+      builder.addDoubleProperty("minPerimeter",  () -> pipeline.filterContoursMinPerimeterValue, value -> {pipeline.filterContoursMinPerimeterValue = value;});
+      builder.addDoubleProperty("MinWidth", () -> pipeline.filterContoursMinWidthValue, value -> {pipeline.filterContoursMinWidthValue = value;});
+      builder.addDoubleProperty("MaxWidth", () -> pipeline.filterContoursMaxWidthValue, value -> {pipeline.filterContoursMaxWidthValue = value;});
+      builder.addDoubleProperty("MinHeight", () -> pipeline.filterContoursMinHeightValue, value -> {pipeline.filterContoursMinHeightValue = value;});
+      builder.addDoubleProperty("MaxHeight", () -> pipeline.filterContoursMaxHeightValue, value -> {pipeline.filterContoursMaxHeightValue = value;});
+      builder.addDoubleProperty("lowerfilterContoursSolidity", () -> pipeline.lowerfilterContoursSolidityValue, value -> {pipeline.lowerfilterContoursSolidityValue = value;});
+      builder.addDoubleProperty("upperfilterContoursSolidityValue", () -> pipeline.upperfilterContoursSolidityValue, value -> {pipeline.upperfilterContoursSolidityValue = value;});
+      builder.addDoubleProperty("MaxVertices", () -> pipeline.filterContoursMaxVerticesValue, value -> {pipeline.filterContoursMaxVerticesValue = value;});
+      builder.addDoubleProperty("MinVertices", () -> pipeline.filterContoursMinVerticesValue, value -> {pipeline.filterContoursMinVerticesValue = value;});
+      builder.addDoubleProperty("MinRatio", () -> pipeline.filterContoursMinRatioValue, value -> {pipeline.filterContoursMinRatioValue = value;});
+      builder.addDoubleProperty("MaxRatio", () -> pipeline.filterContoursMaxRatioValue, value -> {pipeline.filterContoursMaxRatioValue = value;});
     }  
   }
 
+
+  static NetworkTable cameraInput = NetworkTableInstance.getDefault().getTable("Camera Input");
+  static NetworkTableEntry cameraInputPort = cameraInput.getEntry("Camera Port");
+  
+ 
+  //cameraInputPort.setNumber(0);
   /**
    * Main.
    */
@@ -403,6 +421,10 @@ public final class Main {
     for (CameraConfig cameraConfig : cameraConfigs) {
       cameras.add(startCamera(cameraConfig));
     }
+    if(cameraInputPort.getDouble(-10) == 0) {
+      
+    }
+     
 
     // start image processing on camera 0 if present
     if (cameras.size() >= 1) {
