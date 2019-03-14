@@ -388,9 +388,10 @@ public final class Main {
   }
 
 
-  static NetworkTable cameraInput = NetworkTableInstance.getDefault().getTable("Camera Input");
-  static NetworkTableEntry cameraInputPort = cameraInput.getEntry("Camera Port");
-  
+  static private NetworkTable cameraInput = NetworkTableInstance.getDefault().getTable("Camera Input");
+  static private NetworkTableEntry cameraInputPort = cameraInput.getEntry("Camera Port");
+  static private double lastPort = 0;
+  static private VisionThread visionThread;
  
   //cameraInputPort.setNumber(0);
   /**
@@ -421,14 +422,10 @@ public final class Main {
     for (CameraConfig cameraConfig : cameraConfigs) {
       cameras.add(startCamera(cameraConfig));
     }
-    if(cameraInputPort.getDouble(-10) == 0) {
-      
-    }
-     
 
     // start image processing on camera 0 if present
     if (cameras.size() >= 1) {
-      VisionThread visionThread = new VisionThread(cameras.get(0),
+       visionThread = new VisionThread(cameras.get(0),
               new MyPipeline(), pipeline -> {
         // do something with pipeline results
       });
@@ -444,7 +441,19 @@ public final class Main {
     // loop forever
     for (;;) {
       try {
-        Thread.sleep(10000);
+        if(cameraInputPort.getDouble(lastPort) != lastPort) {
+          lastPort = cameraInputPort.getDouble(lastPort);
+          visionThread.interrupt();
+          
+          do {
+            Thread.sleep(20);
+          } while(visionThread.isAlive());
+
+          visionThread = new VisionThread(cameras.get((int) lastPort),
+          new MyPipeline(), pipeline -> { });
+          visionThread.start();
+        }
+        Thread.sleep(200);
       } catch (InterruptedException ex) {
         return;
       }
